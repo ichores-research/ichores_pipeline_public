@@ -1,0 +1,266 @@
+#! /usr/bin/env python3
+import rospy
+from object_detector_msgs.srv import detectron2_service_server, estimate_pointing_gesture
+from robokudo_msgs.msg import GenericImgProcAnnotatorAction, GenericImgProcAnnotatorResult, GenericImgProcAnnotatorFeedback, GenericImgProcAnnotatorGoal
+import actionlib
+from sensor_msgs.msg import Image, RegionOfInterest
+import tf
+import numpy as np
+
+import cv2
+from cv_bridge import CvBridge, CvBridgeError
+from visualization_msgs.msg import Marker
+from sensor_msgs.msg import Image
+from geometry_msgs.msg import Pose, Point, Quaternion
+
+class PoseCalculator:
+    def __init__(self):
+        self.image_publisher = rospy.Publisher('/pose_estimator/image_with_roi', Image, queue_size=10)
+        self.marker_publisher = rospy.Publisher('/object_markers', Marker, queue_size=10)
+        self.bridge = CvBridge()
+    
+        self.client = actionlib.SimpleActionClient('/pose_estimator/gdrnet', 
+                                                   GenericImgProcAnnotatorAction)
+        self.client.wait_for_server()
+
+        self.server = actionlib.SimpleActionServer('/pose_estimator',
+                                                   GenericImgProcAnnotatorAction,
+                                                   execute_cb=self.get_poses_robokudo,
+                                                   auto_start=False)
+        self.server.start()
+
+    def detect_objects(self, rgb):
+        rospy.wait_for_service('detect_objects')
+        try:
+            detect_objects_service = rospy.ServiceProxy('detect_objects', detectron2_service_server)
+            response = detect_objects_service(rgb)
+            return response.detections.detections
+        except rospy.ServiceException as e:
+            print("Service call failed: %s" % e)
+
+    def detect_pointing_gesture(self, rgb, depth):
+        rospy.wait_for_service('detect_pointing_gesture')
+        try:
+            detect_pointing_gesture_service = rospy.ServiceProxy('detect_pointing_gesture', estimate_pointing_gesture)
+            response = detect_pointing_gesture_service(rgb, depth)
+            return response
+        except rospy.ServiceException as e:
+            print("Service call failed: %s" % e)
+
+    def estimate(self, rgb, depth, detections):
+        try:
+            goal = GenericImgProcAnnotatorGoal()
+            goal.rgb = rgb
+            goal.depth = depth
+            bb_detections = []
+            class_names = []
+            description = ''
+            ind_detections = np.arange(0, len(detections), 1)
+            for detection, index in zip(detections, ind_detections):
+                print(f"{index=}")
+                roi = RegionOfInterest()
+                roi.x_offset = detection.bbox.ymin
+                roi.y_offset = detection.bbox.xmin
+                roi.height = detection.bbox.xmax - detection.bbox.xmin
+                roi.width = detection.bbox.ymax - detection.bbox.ymin
+                roi.do_rectify = False
+
+                bb_detections.append(roi)
+                class_names.append(detection.name)
+                if index == 0:
+                    description = description + f'"{detection.name}": "{detection.score}"'
+                else:
+                    description = description + f', "{detection.name}": "{detection.score}"'
+            description = '{' + description + '}'
+            print(f"{description=}")
+            goal.bb_detections = bb_detections
+            goal.class_names = class_names
+            goal.description = description
+            self.client.send_goal(goal)
+            self.client.wait_for_result()
+            result = self.client.get_result()
+        except rospy.ServiceException as e:
+            print("Service call failed: %s" % e)
+
+        return result
+
+    # def publish_marker(self, result):
+    #         marker = Marker()
+    #         marker.header.frame_id = "camera_color_optical_frame"  # Replace with your desired frame ID
+    #         marker.header.stamp = rospy.Time.now()
+    #         marker.type = Marker.CUBE
+    #         marker.action = Marker.ADD
+
+    #         # Set the pose from the result
+    #         # x is z
+
+    #         marker.pose.position = Point(result.pose_results[0].position.x,
+    #                                     result.pose_results[0].position.y,
+    #                                     result.pose_results[0].position.z)
+    #         marker.pose.orientation = Quaternion(result.pose_results[0].orientation.x,
+    #                                             result.pose_results[0].orientation.y,
+    #                                             result.pose_results[0].orientation.z,
+    #                                             result.pose_results[0].orientation.w)
+
+    #         size_x = ( 97.15 ) / 1000
+    #         size_y = ( 66.62 ) / 1000
+    #         size_z = ( 191.408 ) / 1000
+
+    #         marker.scale.x = size_x
+    #         marker.scale.y = size_y
+    #         marker.scale.z = size_z
+
+    #         # Set the color (green in this example)
+    #         marker.color.r = 0.0
+    #         marker.color.g = 1.0
+    #         marker.color.b = 0.0
+    #         marker.color.a = 0.5
+
+    #         # Publish the marker
+    #         self.marker_publisher.publish(marker)
+
+    def publish_annotated_image(self, rgb, detections):
+        try:
+            cv_image = self.bridge.imgmsg_to_cv2(rgb, "bgr8")
+        except CvBridgeError as e:
+            rospy.logerr(e)
+            return
+
+        for detection in detections:
+            xmin = int(detection.bbox.ymin)
+            ymin = int(detection.bbox.xmin)
+            xmax = int(detection.bbox.ymax)
+            ymax = int(detection.bbox.xmax)
+
+            font_size = 1.0
+            line_size = 3
+
+            cv2.rectangle(cv_image, (xmin, ymin), (xmax, ymax), (0, 255, 0), line_size)
+
+            class_name = detection.name
+            score = detection.score
+            label = f"{class_name}: {score:.2f}"
+            cv2.putText(cv_image, label, (xmin, ymin - 20), cv2.FONT_HERSHEY_SIMPLEX, font_size, (0, 255, 0), line_size)
+
+        # Publish annotated image
+        annotated_image_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
+        self.image_publisher.publish(annotated_image_msg)
+
+        # Display image for debugging
+        # cv2.imshow("Annotated Image", cv_image)
+        # cv2.waitKey(10)
+
+    def get_poses_robokudo(self, goal):
+        res = GenericImgProcAnnotatorResult()
+        res.success = False
+        res.result_feedback = "calculated: "
+        feedback = GenericImgProcAnnotatorFeedback()
+
+        # === check if we have an image ===
+        if goal.rgb is None or goal.depth is None:
+            print("no images available")
+            res.result_feedback = "no images available"
+            res.success = False
+            self.server.set_succeeded(res)
+            # self.server.set_preempted()
+            return
+        rgb = goal.rgb
+        depth = goal.depth
+        print('Perform detection with YOLOv8 ...')
+        detections = self.detect_objects(rgb)
+        print("... received detection.")
+
+        if detections is None or len(detections) == 0:
+            print("nothing detected")
+            self.server.set_aborted(res)
+            return
+        else:
+            print('Perform pose estimation with GDR-Net++ ...')
+            try:
+                res = self.estimate(rgb, depth, detections)
+
+            except Exception as e:
+                rospy.logerr(f"{e=}")
+
+        # res.class_names = class_names
+        res.result_feedback = res.result_feedback + ", class_names"
+        # res.class_confidences = class_confidences
+        res.result_feedback = res.result_feedback + ", class_confidences"
+        # res.pose_results = pose_results
+        res.result_feedback = res.result_feedback + ", pose_results"
+        res.success = True
+        print(f"{res=}")
+        self.server.set_succeeded(res)
+
+def calculate_distance_to_line(point, line_start, line_end):
+    """
+    Calculate the normal distance from a point to a line defined by two points.
+    """
+    line_vec = np.array([line_end.x - line_start.x, line_end.y - line_start.y, line_end.z - line_start.z])
+    point_vec = np.array([point.x - line_start.x, point.y - line_start.y, point.z - line_start.z])
+    line_len = np.linalg.norm(line_vec)
+    line_unitvec = line_vec / line_len
+    point_vec_scaled = point_vec / line_len
+    t = np.dot(line_unitvec, point_vec_scaled)
+    nearest = t * line_unitvec
+    distance = np.linalg.norm(nearest - point_vec_scaled) * line_len
+    return distance
+
+if __name__ == "__main__":
+    rospy.init_node("calculate_poses")
+    try:
+        pose_calculator = PoseCalculator()
+        rate = rospy.Rate(2)  # Adjust the rate as needed (Hz)
+
+        while not rospy.is_shutdown():
+            # Assuming you have a way to get RGB and depth images
+            rgb = rospy.wait_for_message(rospy.get_param('/pose_estimator/color_topic'), Image)
+            depth = rospy.wait_for_message(rospy.get_param('/pose_estimator/depth_topic'), Image)
+
+            #print('Perform detection with YOLOv8 ...')
+            detections = pose_calculator.detect_objects(rgb)
+            pose_calculator.publish_annotated_image(rgb, detections)
+            #print("... received object detection.")
+
+            #print('Perform Pointing Detection...')
+            joint_positions = pose_calculator.detect_pointing_gesture(rgb, depth)
+            # print('... received pointing gesture.')
+
+            estimated_poses = []
+            if detections is None or len(detections) == 0:
+                print("nothing detected")
+            else:
+                #print('Perform pose estimation with GDR-Net++ ...')
+                try:
+                    # Check for specific class and skip processing
+                    if not any(detection.name == "036_wood_block" for detection in detections):
+                        estimated_poses = pose_calculator.estimate(rgb, depth, detections)
+                        #pose_calculator.publish_marker(result)
+
+                except Exception as e:
+                    rospy.logerr(f"{e}")
+
+            # New step: Check which object the human is pointing to
+            if estimated_poses and joint_positions is not None:
+                elbow = joint_positions.elbow
+                wrist = joint_positions.wrist
+                min_distance = float('inf')
+                pointed_object = None
+                threshold = 0.3  # 0.5 meters
+
+                for idx, pose_result in enumerate(estimated_poses.pose_results):
+                    object_position = pose_result.position
+                    distance = calculate_distance_to_line(object_position, elbow, wrist)
+                    if distance < min_distance:
+                        min_distance = distance
+                        pointed_object = estimated_poses.class_names[idx]
+
+                if min_distance < threshold:
+                    print(f"The human is pointing to the object: {pointed_object}")
+                    print()
+
+            rate.sleep()
+
+    except rospy.ROSInterruptException:
+        pass
+
