@@ -20,9 +20,6 @@ Use the following to pull updates:
 | YOLOv8                               | 2.2 GB     | 1.4 GB           | 16.2 GB    | 2D Object Detection with YOLOv8 | [YOLOv8](https://github.com/hoenigpeter/yolov8_ros)                  |
 | GDRN++                               | 3.5 GB     | 7.0 GB           | 18.7 GB    | 6D Object Pose Estimation with GDRN++ | [GDR-Net++](https://github.com/hoenigpeter/gdrnpp_bop2022)           |
 
-This table provides a clear and structured overview of the modules, making it easy to compare their resource requirements and understand their purposes.
-
-
 ## Startup using the compose file(s)
 [Configure](#configurations) all files first. Don't forget to set the [IP Adress of the ROS Master](#ros-master) if you have another ROS-Core running.
 
