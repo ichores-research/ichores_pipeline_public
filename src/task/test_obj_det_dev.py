@@ -6,6 +6,9 @@ import actionlib
 from sensor_msgs.msg import Image, RegionOfInterest
 import tf
 import numpy as np
+import open3d as o3d
+import yaml
+import os
 
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
@@ -18,7 +21,9 @@ class PoseCalculator:
         self.image_publisher = rospy.Publisher('/pose_estimator/image_with_roi', Image, queue_size=10)
         self.marker_publisher = rospy.Publisher('/object_markers', Marker, queue_size=10)
         self.bridge = CvBridge()
-    
+
+        self.models = self.load_models("/root/task/datasets/ycb_ichores/models", "/root/config/ycb_ichores.yaml")
+
         self.client = actionlib.SimpleActionClient('/pose_estimator/gdrnet', 
                                                    GenericImgProcAnnotatorAction)
         self.client.wait_for_server()
@@ -27,7 +32,29 @@ class PoseCalculator:
                                                    GenericImgProcAnnotatorAction,
                                                    execute_cb=self.get_poses_robokudo,
                                                    auto_start=False)
+
+        self.frame_id = rospy.get_param('/pose_estimator/color_frame_id')
+
         self.server.start()
+
+    def load_models(self, folder_path, yaml_file_path):
+        with open(yaml_file_path, 'r') as yaml_file:
+            yaml_data = yaml.safe_load(yaml_file)
+        
+        names = yaml_data.get('names', {})
+        models = {}
+
+        for obj_id, obj_name in names.items():
+            filename = f"obj_{int(obj_id):06d}.ply"
+            print(filename)
+            model_path = os.path.join(folder_path, filename)
+            if os.path.exists(model_path):
+                model = o3d.io.read_point_cloud(model_path)
+                vertices = np.asarray(model.points)
+                colors = np.asarray(model.colors) if model.colors else None
+                models[obj_name] = {'vertices': vertices, 'colors': colors}
+                print(colors)
+        return models
 
     def detect_objects(self, rgb):
         rospy.wait_for_service('detect_objects')
@@ -83,41 +110,6 @@ class PoseCalculator:
             print("Service call failed: %s" % e)
 
         return result
-
-    # def publish_marker(self, result):
-    #         marker = Marker()
-    #         marker.header.frame_id = "camera_color_optical_frame"  # Replace with your desired frame ID
-    #         marker.header.stamp = rospy.Time.now()
-    #         marker.type = Marker.CUBE
-    #         marker.action = Marker.ADD
-
-    #         # Set the pose from the result
-    #         # x is z
-
-    #         marker.pose.position = Point(result.pose_results[0].position.x,
-    #                                     result.pose_results[0].position.y,
-    #                                     result.pose_results[0].position.z)
-    #         marker.pose.orientation = Quaternion(result.pose_results[0].orientation.x,
-    #                                             result.pose_results[0].orientation.y,
-    #                                             result.pose_results[0].orientation.z,
-    #                                             result.pose_results[0].orientation.w)
-
-    #         size_x = ( 97.15 ) / 1000
-    #         size_y = ( 66.62 ) / 1000
-    #         size_z = ( 191.408 ) / 1000
-
-    #         marker.scale.x = size_x
-    #         marker.scale.y = size_y
-    #         marker.scale.z = size_z
-
-    #         # Set the color (green in this example)
-    #         marker.color.r = 0.0
-    #         marker.color.g = 1.0
-    #         marker.color.b = 0.0
-    #         marker.color.a = 0.5
-
-    #         # Publish the marker
-    #         self.marker_publisher.publish(marker)
 
     def publish_annotated_image(self, rgb, detections):
         try:
@@ -192,6 +184,45 @@ class PoseCalculator:
         print(f"{res=}")
         self.server.set_succeeded(res)
 
+    def publish_mesh_marker(self, cls_name, quat, t_est):
+        from visualization_msgs.msg import Marker
+        vis_pub = rospy.Publisher("/gdrnet_meshes", Marker, latch=True)
+        model_data = self.models.get(cls_name, None)
+        model_vertices = np.array(model_data['vertices'])/1000
+        #model_colors = model_data['colors']
+
+        marker = Marker()
+        marker.header.frame_id = self.frame_id
+        marker.header.stamp = rospy.Time.now()
+        marker.type = Marker.TRIANGLE_LIST
+        marker.ns = cls_name
+        marker.action = Marker.ADD
+        marker.pose.position.x = t_est[0]
+        marker.pose.position.y = t_est[1]
+        marker.pose.position.z = t_est[2]
+        #quat = Rotation.from_matrix(R_est).as_quat()
+        marker.pose.orientation.x = quat[0]
+        marker.pose.orientation.y = quat[1]
+        marker.pose.orientation.z = quat[2]
+        marker.pose.orientation.w = quat[3]
+        marker.scale.x = 1.0
+        marker.scale.y = 1.0
+        marker.scale.z = 1.0
+        from geometry_msgs.msg import Point
+        from std_msgs.msg import ColorRGBA
+        #assert model_vertices.shape[0] == model_colors.shape[0]
+
+        # TRIANGLE_LIST needs 3*x points to render x triangles 
+        # => find biggest number smaller than model_vertices.shape[0] that is still divisible by 3
+        shape_vertices = 3*int((model_vertices.shape[0] - 1)/3)
+        for i in range(shape_vertices):
+            pt = Point(x = model_vertices[i, 0], y = model_vertices[i, 1], z = model_vertices[i, 2])
+            marker.points.append(pt)
+            rgb = ColorRGBA(r = 1, g = 0, b = 0, a = 1.0)
+            marker.colors.append(rgb)
+
+        vis_pub.publish(marker)
+
 def calculate_distance_to_line(point, line_start, line_end):
     """
     Calculate the normal distance from a point to a line defined by two points.
@@ -210,7 +241,7 @@ if __name__ == "__main__":
     rospy.init_node("calculate_poses")
     try:
         pose_calculator = PoseCalculator()
-        rate = rospy.Rate(2)  # Adjust the rate as needed (Hz)
+        rate = rospy.Rate(10)  # Adjust the rate as needed (Hz)
 
         while not rospy.is_shutdown():
             # Assuming you have a way to get RGB and depth images
@@ -248,14 +279,19 @@ if __name__ == "__main__":
                 pointed_object = None
                 threshold = 0.3  # 0.5 meters
 
+                pointed_object_pose = None
                 for idx, pose_result in enumerate(estimated_poses.pose_results):
                     object_position = pose_result.position
                     distance = calculate_distance_to_line(object_position, elbow, wrist)
                     if distance < min_distance:
                         min_distance = distance
                         pointed_object = estimated_poses.class_names[idx]
+                        pointed_object_pose = pose_result
 
                 if min_distance < threshold:
+                    R = np.array([pointed_object_pose.orientation.x, pointed_object_pose.orientation.y,  pointed_object_pose.orientation.z, pointed_object_pose.orientation.w])
+                    t = np.array([pointed_object_pose.position.x, pointed_object_pose.position.y, pointed_object_pose.position.z])
+                    pose_calculator.publish_mesh_marker(pointed_object, R, t)
                     print(f"The human is pointing to the object: {pointed_object}")
                     print()
 
