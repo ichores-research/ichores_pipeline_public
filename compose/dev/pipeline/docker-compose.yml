@@ -1,4 +1,5 @@
 version: '2.4'
+
 services:
   task:
     image: task
@@ -19,6 +20,7 @@ services:
       - ROS_IP=127.0.0.1
       - DISPLAY
       - QT_X11_NO_MITSHM=1
+      - DATASET=${DATASET}
     command: bash -c "source catkin_ws/devel/setup.bash;
                       rosparam load /root/config/params_realsense.yaml /pose_estimator;
                       python /root/task/test_obj_det_dev.py"
@@ -44,8 +46,9 @@ services:
       - ROS_IP=127.0.0.1
       - DISPLAY
       - QT_X11_NO_MITSHM=1
+      - DATASET=${DATASET}
     command: bash -c "source catkin_ws/devel/setup.bash;
-                      python ./yolo/detect_ros_seg.py --conf-thres 0.8 --weights ./yolo/weights/ycb_ichores.pt --camera-topic '$$(rosparam get /pose_estimator/color_topic)'"
+                      python ./yolo/detect_ros_seg.py --conf-thres 0.8 --weights ./yolo/weights/${DATASET}.pt --camera-topic '$$(rosparam get /pose_estimator/color_topic)'"
     stdin_open: true
     tty: true 
 
@@ -60,7 +63,7 @@ services:
       - "../../../src/gdrnpp_bop2022:/root/gdrnpp:rw"
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /etc/localtime:/etc/localtime:ro
-      - "../../../data/weights/gdrnpp/output:/root/gdrnpp/output:rw"
+      - "../../../data/weights/gdrnpp:/root/gdrnpp/output:rw"
       - "../../../data/datasets:/root/gdrnpp/datasets/BOP_DATASETS:rw"
       - ../../../config:/root/config
     environment: 
@@ -68,8 +71,9 @@ services:
       - ROS_IP=127.0.0.1
       - DISPLAY
       - QT_X11_NO_MITSHM=1
+      - DATASET=${DATASET}
     command: bash -c "source catkin_ws/devel/setup.bash;
-             python ./gdrnpp/core/gdrn_modeling/demo/demo_gdrn_ros_robokudo.py --model_file ycb_ichores"        
+             python ./gdrnpp/core/gdrn_modeling/demo/demo_gdrn_ros_robokudo.py --model_file ${DATASET}"        
     stdin_open: true
     tty: true
 
@@ -92,6 +96,7 @@ services:
       - ROS_IP=127.0.0.1
       - DISPLAY
       - QT_X11_NO_MITSHM=1
+      - DATASET=${DATASET}
     command: bash -c "source catkin_ws/devel/setup.bash;
                       python ./pointing_gesture_recognition/pointing_detector.py \
                           --color-topic '$$(rosparam get /pose_estimator/color_topic)' \

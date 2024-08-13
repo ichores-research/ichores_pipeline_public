@@ -9,6 +9,7 @@ import numpy as np
 import open3d as o3d
 import yaml
 import os
+import time
 
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
@@ -19,7 +20,6 @@ from geometry_msgs.msg import Pose, Point, Quaternion
 class PoseCalculator:
     def __init__(self):
         self.image_publisher = rospy.Publisher('/pose_estimator/image_with_roi', Image, queue_size=10)
-        self.marker_publisher = rospy.Publisher('/object_markers', Marker, queue_size=10)
         self.bridge = CvBridge()
 
         self.models = self.load_models("/root/task/datasets/ycb_ichores/models", "/root/config/ycb_ichores.yaml")
@@ -46,14 +46,12 @@ class PoseCalculator:
 
         for obj_id, obj_name in names.items():
             filename = f"obj_{int(obj_id):06d}.ply"
-            print(filename)
             model_path = os.path.join(folder_path, filename)
             if os.path.exists(model_path):
                 model = o3d.io.read_point_cloud(model_path)
                 vertices = np.asarray(model.points)
                 colors = np.asarray(model.colors) if model.colors else None
                 models[obj_name] = {'vertices': vertices, 'colors': colors}
-                print(colors)
         return models
 
     def detect_objects(self, rgb):
@@ -84,7 +82,6 @@ class PoseCalculator:
             description = ''
             ind_detections = np.arange(0, len(detections), 1)
             for detection, index in zip(detections, ind_detections):
-                print(f"{index=}")
                 roi = RegionOfInterest()
                 roi.x_offset = detection.bbox.ymin
                 roi.y_offset = detection.bbox.xmin
@@ -99,7 +96,6 @@ class PoseCalculator:
                 else:
                     description = description + f', "{detection.name}": "{detection.score}"'
             description = '{' + description + '}'
-            print(f"{description=}")
             goal.bb_detections = bb_detections
             goal.class_names = class_names
             goal.description = description
@@ -249,15 +245,21 @@ if __name__ == "__main__":
             depth = rospy.wait_for_message(rospy.get_param('/pose_estimator/depth_topic'), Image)
 
             #print('Perform detection with YOLOv8 ...')
+            t0 = time.time()
             detections = pose_calculator.detect_objects(rgb)
+            time_detections = time.time() - t0
+
             pose_calculator.publish_annotated_image(rgb, detections)
             #print("... received object detection.")
 
             #print('Perform Pointing Detection...')
+            t0 = time.time()
             joint_positions = pose_calculator.detect_pointing_gesture(rgb, depth)
+            time_pointing = time.time() - t0
             # print('... received pointing gesture.')
 
             estimated_poses = []
+            t0 = time.time()
             if detections is None or len(detections) == 0:
                 print("nothing detected")
             else:
@@ -270,8 +272,10 @@ if __name__ == "__main__":
 
                 except Exception as e:
                     rospy.logerr(f"{e}")
+            time_object_poses = time.time() - t0
 
             # New step: Check which object the human is pointing to
+            t0 = time.time()
             if estimated_poses and joint_positions is not None:
                 elbow = joint_positions.elbow
                 wrist = joint_positions.wrist
@@ -295,7 +299,14 @@ if __name__ == "__main__":
                     print(f"The human is pointing to the object: {pointed_object}")
                     print()
 
-            rate.sleep()
+            time_point_checker = time.time() - t0
+            # Print the timed periods
+            print(f"Time for object detection: {time_detections:.2f} seconds")
+            print(f"Time for pointing detection: {time_pointing:.2f} seconds")
+            print(f"Time for object pose estimation: {time_object_poses:.2f} seconds")
+            print(f"Time for pointing checker: {time_point_checker:.2f} seconds")
+            print()
+            #rate.sleep()
 
     except rospy.ROSInterruptException:
         pass

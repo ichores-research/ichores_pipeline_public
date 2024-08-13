@@ -1,5 +1,5 @@
 # iChores Pipeline
-The pipeline is implemented for the detection and pose estimatino of YCB-V objects.
+The pipeline is implemented for the detection and pose estimation of objects from the YCB-V or YCB-iChores datasets.
 This repo includes submodules.
 Clone this repository via either SSH or HTTPS and clone the submodules as well by:
 - `git clone https://github.com/ichores-research/ichores_pipeline.git`
@@ -35,9 +35,17 @@ full pipeline:
 ./download_data.sh
 cd compose/pipeline
 xhost +
-docker-compose up
 ```
+then for YCB-V dataset objects:
 
+```
+DATASET=ycbv docker-compose up
+```
+or for YCB-iChores dataset objects:
+
+```
+DATASET=ycb_ichores docker-compose up
+```
 Docker containers for yolov8, GDRN++ and MediaPipe will be started.
 
 ## Visualization
