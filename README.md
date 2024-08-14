@@ -1,4 +1,7 @@
 # iChores Pipeline
+
+![Logo](doc/logo.png)
+
 The pipeline is implemented for the detection and pose estimation of objects from the YCB-V or YCB-iChores datasets.
 This repo includes submodules.
 Clone this repository via either SSH or HTTPS and clone the submodules as well by:
