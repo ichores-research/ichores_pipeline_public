@@ -18,8 +18,6 @@ Use the following to pull updates:
 - A NVIDIA GPU with >16GB is recommended
 - System RAM >= 64 GB is recommended
 
-Here's the updated table with the additional method, MediaPipe:
-
 | Module                               | VRAM Usage | System RAM Usage | Disk Space | Description                                 | Link                                                                                   |
 |--------------------------------------|------------|------------------|------------|---------------------------------------------|----------------------------------------------------------------------------------------|
 | YOLOv8                               | 2.2 GB     | 1.4 GB           | 16.2 GB    | 2D Object Detection with YOLOv8             | [YOLOv8](https://github.com/hoenigpeter/yolov8_ros)                                    |
@@ -40,6 +38,24 @@ This is different when the roscore is running on a robot, e.g. HSR:
 
 We will add the ROS setup for Tiago here in the future.
 
+## Configurations
+The params for camera intrinsics and rgb/depth-topics are in config/params.yaml
+Change this according to your project
+Currently the resolution must be 640x480 
+```
+im_width  # input image widht
+im_height: # input image height
+intrinsics:
+- [538.391033533567, 0.0, 315.3074696331638]  # camera intrinsics
+- [0.0, 538.085452058436, 233.0483557773859]
+- [0.0, 0.0, 1.0] 
+
+color_topic: /hsrb/head_rgbd_sensor/rgb/image_rect_color #  rgb image topic
+depth_topic: /hsrb/head_rgbd_sensor/depth_registered/image_rect_raw  # depth image topic
+
+color_frame_id: head_rgbd_sensor_rgb_frame
+```
+
 ## Startup using the compose file(s)
 [Configure](#configurations) all files first. Don't forget to set the [IP Adress of the ROS Master](#ros-master) if you have another ROS-Core running.
 
@@ -56,12 +72,12 @@ xhost +
 then for YCB-V dataset objects (ROS example for local setup, adapt ROS_MASTER_URI and ROS_IP depending on your setup):
 
 ```
-ROS_MASTER_URI=http://127.0.0.1:11311 ROS_IP=127.0.0.1  DATASET=ycbv docker-compose up
+ROS_MASTER_URI=http://127.0.0.1:11311 ROS_IP=127.0.0.1  DATASET=ycbv CONFIG=params_realsense.yaml docker-compose up
 ```
 or for YCB-iChores dataset objects:
 
 ```
-ROS_MASTER_URI=http://127.0.0.1:11311 ROS_IP=127.0.0.1  DATASET=ycb_ichores docker-compose up
+ROS_MASTER_URI=http://127.0.0.1:11311 ROS_IP=127.0.0.1  DATASET=ycb_ichores CONFIG=params_realsense.yaml docker-compose up
 ```
 Docker containers for yolov8, GDRN++ and MediaPipe will be started.
 
@@ -117,30 +133,4 @@ BoundingBox bbox
 int64[] mask
 ```
 
-## Configurations
-### Config-Files
-The params for camera intrinsics and rgb/depth-topics are in config/params.yaml
-Change this according to your project
-Currently the resolution must be 640x480 
-```
-im_width  # input image widht
-im_height: # input image height
-intrinsics:
-- [538.391033533567, 0.0, 315.3074696331638]  # camera intrinsics
-- [0.0, 538.085452058436, 233.0483557773859]
-- [0.0, 0.0, 1.0] 
-
-color_topic: /hsrb/head_rgbd_sensor/rgb/image_rect_color #  rgb image topic
-depth_topic: /hsrb/head_rgbd_sensor/depth_registered/image_rect_raw  # depth image topic
-
-color_frame_id: head_rgbd_sensor_rgb_frame
-```
-
-### ROS Master
-The ROS Master is set in the docker-compose.yml file for each container 
-```
-environment:
-      ROS_MASTER_URI: "http://hsrb.local:11311"
-      ROS_IP: "10.0.0.232"
-```
 
