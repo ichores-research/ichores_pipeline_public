@@ -25,12 +25,16 @@ Here's the updated table with the additional method, MediaPipe:
 
 ## ROS Config
 ROS_IP and ROS_MASTER_URI differ from setup to setup.
+# Local Machine Debugging
 When doing debugging on a local machine with a local ROS master e.g. with https://github.com/hoenigpeter/realsense_ros_docker the ROS_IP and ROS_MASTER_URI are:
 - ROS_IP=127.0.0.1
 - ROS_MASTER_URI=http://127.0.0.1:11311
+
+# Robot Setup
 This is different when the roscore is running on a robot, e.g. HSR:
 - ROS_MASTER_URI=http://10.0.0.143:11311
 - ROS_IP=10.0.0.232
+
 We will add the ROS setup for Tiago here in the future.
 
 ## Startup using the compose file(s)
