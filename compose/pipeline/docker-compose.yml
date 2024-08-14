@@ -14,14 +14,15 @@ services:
       - ../../../src/task:/root/task
       - ../../../config:/root/config
       - "../../../data/datasets:/root/task/datasets:rw"
-    environment: 
-      - ROS_MASTER_URI=http://10.0.0.143:11311
-      - ROS_IP=10.0.0.232
+    environment:
+      - ROS_MASTER_URI=${ROS_MASTER_URI:-http://127.0.0.1:11311}
+      - ROS_IP=${ROS_IP:-127.0.0.1}
       - DISPLAY
       - QT_X11_NO_MITSHM=1
+      - DATASET=${DATASET}
     command: bash -c "source catkin_ws/devel/setup.bash;
-                      rosparam load /root/config/params.yaml /pose_estimator;
-                      python /root/task/test_obj_det_robokudo.py"
+                      rosparam load /root/config/params_realsense.yaml /pose_estimator;
+                      python /root/task/test_obj_det_dev.py"
     stdin_open: true
     tty: true
 
@@ -40,12 +41,13 @@ services:
       - "../../../data/weights/yolov8:/root/yolo/weights:rw"
       - ../../../config:/root/config
     environment: 
-      - ROS_MASTER_URI=http://10.0.0.143:11311
-      - ROS_IP=10.0.0.232
+      - ROS_MASTER_URI=${ROS_MASTER_URI:-http://127.0.0.1:11311}
+      - ROS_IP=${ROS_IP:-127.0.0.1}
       - DISPLAY
       - QT_X11_NO_MITSHM=1
+      - DATASET=${DATASET}
     command: bash -c "source catkin_ws/devel/setup.bash;
-                      python ./yolo/detect_ros_seg.py --conf-thres 0.8 --weights ./yolo/weights/ycb_ichores.pt --camera-topic '$$(rosparam get /pose_estimator/color_topic)'"
+                      python ./yolo/detect_ros_seg.py --conf-thres 0.8 --weights ./yolo/weights/${DATASET}.pt --camera-topic '$$(rosparam get /pose_estimator/color_topic)'"
     stdin_open: true
     tty: true 
 
@@ -60,16 +62,17 @@ services:
       - "../../../src/gdrnpp_bop2022:/root/gdrnpp:rw"
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /etc/localtime:/etc/localtime:ro
-      - "../../../data/weights/gdrnpp/output:/root/gdrnpp/output:rw"
+      - "../../../data/weights/gdrnpp:/root/gdrnpp/output:rw"
       - "../../../data/datasets:/root/gdrnpp/datasets/BOP_DATASETS:rw"
       - ../../../config:/root/config
     environment: 
-      - ROS_MASTER_URI=http://10.0.0.143:11311
-      - ROS_IP=10.0.0.232
+      - ROS_MASTER_URI=${ROS_MASTER_URI:-http://127.0.0.1:11311}
+      - ROS_IP=${ROS_IP:-127.0.0.1}
       - DISPLAY
       - QT_X11_NO_MITSHM=1
-    command: bash -c "source catkin_ws/devel/setup.bash;  
-             python ./gdrnpp/core/gdrn_modeling/demo/demo_gdrn_ros_robokudo.py --model_file ycb_ichores"        
+      - DATASET=${DATASET}
+    command: bash -c "source catkin_ws/devel/setup.bash;
+             python ./gdrnpp/core/gdrn_modeling/demo/demo_gdrn_ros_robokudo.py --model_file ${DATASET}"        
     stdin_open: true
     tty: true
 
@@ -88,10 +91,11 @@ services:
       - "../../../data/datasets:/root/pointing_gesture_recognition/datasets:rw"
       - ../../../config:/root/config
     environment: 
-      - ROS_MASTER_URI=http://10.0.0.143:11311
-      - ROS_IP=10.0.0.232
+      - ROS_MASTER_URI=${ROS_MASTER_URI:-http://127.0.0.1:11311}
+      - ROS_IP=${ROS_IP:-127.0.0.1}
       - DISPLAY
       - QT_X11_NO_MITSHM=1
+      - DATASET=${DATASET}
     command: bash -c "source catkin_ws/devel/setup.bash;
                       python ./pointing_gesture_recognition/pointing_detector.py \
                           --color-topic '$$(rosparam get /pose_estimator/color_topic)' \

@@ -23,6 +23,16 @@ Here's the updated table with the additional method, MediaPipe:
 | GDRN++                               | 3.5 GB     | 7.0 GB           | 18.7 GB    | 6D Object Pose Estimation with GDRN++       | [GDR-Net++](https://github.com/hoenigpeter/gdrnpp_bop2022)                             |
 | MediaPipe                            | 0 GB       | 0.3 GB           | 10 GB      | 3D Human Pose Estimation with Pointing Gesture Recognition | [MediaPipe](https://github.com/v4r-tuwien/pointing_gesture_recognition)                                |
 
+## ROS Config
+ROS_IP and ROS_MASTER_URI differ from setup to setup.
+When doing debugging on a local machine with a local ROS master e.g. with https://github.com/hoenigpeter/realsense_ros_docker the ROS_IP and ROS_MASTER_URI are:
+- ROS_IP=127.0.0.1
+- ROS_MASTER_URI=http://127.0.0.1:11311
+This is different when the roscore is running on a robot, e.g. HSR:
+- ROS_MASTER_URI=http://10.0.0.143:11311
+- ROS_IP=10.0.0.232
+We will add the ROS setup for Tiago here in the future.
+
 ## Startup using the compose file(s)
 [Configure](#configurations) all files first. Don't forget to set the [IP Adress of the ROS Master](#ros-master) if you have another ROS-Core running.
 
@@ -36,15 +46,15 @@ full pipeline:
 cd compose/pipeline
 xhost +
 ```
-then for YCB-V dataset objects:
+then for YCB-V dataset objects (ROS example for local setup, adapt ROS_MASTER_URI and ROS_IP depending on your setup):
 
 ```
-DATASET=ycbv docker-compose up
+ROS_MASTER_URI=http://127.0.0.1:11311 ROS_IP=127.0.0.1  DATASET=ycbv docker-compose up
 ```
 or for YCB-iChores dataset objects:
 
 ```
-DATASET=ycb_ichores docker-compose up
+ROS_MASTER_URI=http://127.0.0.1:11311 ROS_IP=127.0.0.1  DATASET=ycb_ichores docker-compose up
 ```
 Docker containers for yolov8, GDRN++ and MediaPipe will be started.
 
