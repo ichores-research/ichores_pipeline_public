@@ -108,14 +108,9 @@ Visualization Manager:
       Marker Topic: /gdrnet_meshes
       Name: Marker
       Namespaces:
-        005_tomato_soup_can: true
-        006_mustard_bottle: true
-        008_pudding_box: true
-        011_banana: true
         014_lemon: true
         015_peach: true
         016_pear: true
-        021_bleach_cleanser: true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -131,7 +126,7 @@ Visualization Manager:
       Marker Topic: /pointing/shoulder_to_wrist
       Name: Marker
       Namespaces:
-        pointing_arrow_shoulder_to_wrist: true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -139,7 +134,7 @@ Visualization Manager:
       Marker Topic: /pointing/elbow_to_wrist
       Name: Marker
       Namespaces:
-        pointing_arrow_elbow_to_wrist: true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -161,6 +156,14 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /gdrnet_grasps
+      Name: MarkerArray
+      Namespaces:
+        grasp_arrows: true
+      Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
@@ -190,7 +193,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 0.8153074979782104
+      Distance: 1.0499765872955322
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -198,17 +201,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0.5730125904083252
-        Y: -0.22458620369434357
-        Z: 0.29318657517433167
+        X: 0.45865312218666077
+        Y: 0.009876914322376251
+        Z: 6.57294294796884e-05
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8153979182243347
+      Pitch: 0.6003982424736023
       Target Frame: <Fixed Frame>
-      Yaw: 3.608586549758911
+      Yaw: 2.5935897827148438
     Saved: ~
 Window Geometry:
   Displays:

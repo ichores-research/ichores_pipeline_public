@@ -34,4 +34,9 @@ cp -r ycb_ichores/gdrn_weight/model_final.pth ./data/weights/gdrnpp/gdrnpp_ycb_i
 rm -r ycb_ichores/gdrn_weight 
 
 cp -r ycb_ichores/models ./data/datasets/ycb_ichores/models
+rm -r ycb_ichores/models 
+
+cp -r ycb_ichores/grasp_annotations ./data/datasets/ycb_ichores/grasp_annotations
+rm -r ycb_ichores/grasp_annotations
+
 rm -r ycb_ichores.zip ycb_ichores

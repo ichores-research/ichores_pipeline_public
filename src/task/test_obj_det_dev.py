@@ -4,7 +4,9 @@ from object_detector_msgs.srv import detectron2_service_server, estimate_pointin
 from robokudo_msgs.msg import GenericImgProcAnnotatorAction, GenericImgProcAnnotatorResult, GenericImgProcAnnotatorFeedback, GenericImgProcAnnotatorGoal
 import actionlib
 from sensor_msgs.msg import Image, RegionOfInterest
+
 import tf
+import tf.transformations as tf_trans
 import numpy as np
 import open3d as o3d
 import yaml
@@ -13,16 +15,19 @@ import time
 
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
-from visualization_msgs.msg import Marker
+from visualization_msgs.msg import Marker, MarkerArray
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Pose, Point, Quaternion
+
+from utils import *
 
 class PoseCalculator:
     def __init__(self):
         self.image_publisher = rospy.Publisher('/pose_estimator/image_with_roi', Image, queue_size=10)
         self.bridge = CvBridge()
 
-        self.models = self.load_models("/root/task/datasets/ycb_ichores/models", "/root/config/ycb_ichores.yaml")
+        self.models = load_models("/root/task/datasets/ycb_ichores/models", "/root/config/ycb_ichores.yaml")
+        self.grasp_annotations = load_grasp_annotations("/root/task/datasets/ycb_ichores/grasp_annotations", "/root/config/ycb_ichores.yaml")
 
         self.client = actionlib.SimpleActionClient('/pose_estimator/gdrnet', 
                                                    GenericImgProcAnnotatorAction)
@@ -34,25 +39,9 @@ class PoseCalculator:
                                                    auto_start=False)
 
         self.frame_id = rospy.get_param('/pose_estimator/color_frame_id')
+        self.marker_id = 0
 
         self.server.start()
-
-    def load_models(self, folder_path, yaml_file_path):
-        with open(yaml_file_path, 'r') as yaml_file:
-            yaml_data = yaml.safe_load(yaml_file)
-        
-        names = yaml_data.get('names', {})
-        models = {}
-
-        for obj_id, obj_name in names.items():
-            filename = f"obj_{int(obj_id):06d}.ply"
-            model_path = os.path.join(folder_path, filename)
-            if os.path.exists(model_path):
-                model = o3d.io.read_point_cloud(model_path)
-                vertices = np.asarray(model.points)
-                colors = np.asarray(model.colors) if model.colors else None
-                models[obj_name] = {'vertices': vertices, 'colors': colors}
-        return models
 
     def detect_objects(self, rgb):
         rospy.wait_for_service('detect_objects')
@@ -71,6 +60,16 @@ class PoseCalculator:
             return response
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
+
+    def get_grasps(self, obj_poses):
+        grasps = []
+        for idx, obj_pose in enumerate(obj_poses.pose_results):
+            obj_name = obj_poses.class_names[idx]
+            grasps_obj_frame = self.grasp_annotations.get(obj_name, None)['grasps']
+            grasps_world_frame = transform_grasp_obj2world(grasps_obj_frame, obj_pose)
+            grasps.append(grasps_world_frame)
+
+        return grasps
 
     def estimate(self, rgb, depth, detections):
         try:
@@ -181,7 +180,6 @@ class PoseCalculator:
         self.server.set_succeeded(res)
 
     def publish_mesh_marker(self, cls_name, quat, t_est):
-        from visualization_msgs.msg import Marker
         vis_pub = rospy.Publisher("/gdrnet_meshes", Marker, latch=True)
         model_data = self.models.get(cls_name, None)
         model_vertices = np.array(model_data['vertices'])/1000
@@ -219,19 +217,55 @@ class PoseCalculator:
 
         vis_pub.publish(marker)
 
-def calculate_distance_to_line(point, line_start, line_end):
-    """
-    Calculate the normal distance from a point to a line defined by two points.
-    """
-    line_vec = np.array([line_end.x - line_start.x, line_end.y - line_start.y, line_end.z - line_start.z])
-    point_vec = np.array([point.x - line_start.x, point.y - line_start.y, point.z - line_start.z])
-    line_len = np.linalg.norm(line_vec)
-    line_unitvec = line_vec / line_len
-    point_vec_scaled = point_vec / line_len
-    t = np.dot(line_unitvec, point_vec_scaled)
-    nearest = t * line_unitvec
-    distance = np.linalg.norm(nearest - point_vec_scaled) * line_len
-    return distance
+    def publish_grasp_marker(self, transformed_grasps):
+        marker_pub = rospy.Publisher("/gdrnet_grasps", MarkerArray, latch=True)
+
+        marker_array = MarkerArray()
+        align_x_to_z = tf_trans.quaternion_from_euler(0, np.pi / 2, 0)  # (roll, pitch, yaw)
+
+        for idx, grasp_matrix in enumerate(transformed_grasps):
+
+            # Reshape the flattened grasp matrix back to 4x4
+            grasp_matrix = np.array(grasp_matrix).reshape(4, 4)
+            
+            # Extract position and orientation
+            position = grasp_matrix[:3, 3]
+            orientation_quat = tf_trans.quaternion_from_matrix(grasp_matrix)
+            adjusted_orientation = tf_trans.quaternion_multiply(orientation_quat, align_x_to_z)
+
+            # Create an arrow marker for each grasp
+            marker = Marker()
+            marker.header.frame_id = self.frame_id  # Use your world frame name
+            marker.header.stamp = rospy.Time.now()
+            marker.ns = "grasp_arrows"
+            marker.id = idx
+
+            marker.type = Marker.ARROW
+            marker.action = Marker.ADD
+            marker.pose.position.x = position[0]
+            marker.pose.position.y = position[1]
+            marker.pose.position.z = position[2]
+            marker.pose.orientation.x = adjusted_orientation[0]
+            marker.pose.orientation.y = adjusted_orientation[1]
+            marker.pose.orientation.z = adjusted_orientation[2]
+            marker.pose.orientation.w = adjusted_orientation[3]
+
+            # Define the arrow's scale (width and length)
+            marker.scale.x = 0.1  # Shaft length
+            marker.scale.y = 0.02  # Shaft width
+            marker.scale.z = 0.02  # Head width
+
+            # Set color for the arrow (e.g., green)
+            marker.color.r = 0.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+            marker.color.a = 1.0  # Fully opaque
+
+            # Add to marker array
+            marker_array.markers.append(marker)
+
+        # Publish the marker array
+        marker_pub.publish(marker_array)
 
 if __name__ == "__main__":
     rospy.init_node("calculate_poses")
@@ -256,9 +290,11 @@ if __name__ == "__main__":
             t0 = time.time()
             joint_positions = pose_calculator.detect_pointing_gesture(rgb, depth)
             time_pointing = time.time() - t0
-            # print('... received pointing gesture.')
+            #print('... received pointing gesture.')
 
             estimated_poses = []
+            estimated_grasps = None
+
             t0 = time.time()
             if detections is None or len(detections) == 0:
                 print("nothing detected")
@@ -268,11 +304,16 @@ if __name__ == "__main__":
                     # Check for specific class and skip processing
                     if not any(detection.name == "036_wood_block" for detection in detections):
                         estimated_poses = pose_calculator.estimate(rgb, depth, detections)
-                        #pose_calculator.publish_marker(result)
-
+                        estimated_grasps = pose_calculator.get_grasps(estimated_poses)
+                        
                 except Exception as e:
                     rospy.logerr(f"{e}")
             time_object_poses = time.time() - t0
+
+            # show grasps in RViz
+            if estimated_grasps is not None:
+                for grasp in estimated_grasps:
+                    pose_calculator.publish_grasp_marker(grasp)
 
             # New step: Check which object the human is pointing to
             t0 = time.time()
@@ -281,7 +322,7 @@ if __name__ == "__main__":
                 wrist = joint_positions.wrist
                 min_distance = float('inf')
                 pointed_object = None
-                threshold = 0.3  # 0.5 meters
+                threshold = 0.3  # 0.5 meters              
 
                 pointed_object_pose = None
                 for idx, pose_result in enumerate(estimated_poses.pose_results):
