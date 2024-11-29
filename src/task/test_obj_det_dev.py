@@ -283,14 +283,18 @@ if __name__ == "__main__":
             detections = pose_calculator.detect_objects(rgb)
             time_detections = time.time() - t0
 
-            pose_calculator.publish_annotated_image(rgb, detections)
-            #print("... received object detection.")
+            if detections is not None:
+                pose_calculator.publish_annotated_image(rgb, detections)
+                for detection in detections:
+                    print(detection.name)
+            print()
+            print("... received object detection.")
 
-            #print('Perform Pointing Detection...')
+            print('Perform Pointing Detection...')
             t0 = time.time()
             joint_positions = pose_calculator.detect_pointing_gesture(rgb, depth)
             time_pointing = time.time() - t0
-            #print('... received pointing gesture.')
+            print('... received pointing gesture.')
 
             estimated_poses = []
             estimated_grasps = None
