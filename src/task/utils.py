@@ -3,6 +3,8 @@ import os
 import numpy as np
 import open3d as o3d
 import tf.transformations as tf_trans
+from visualization_msgs.msg import Marker, MarkerArray
+import rospy
 
 def load_grasp_annotations(folder_path, yaml_file_path):
     with open(yaml_file_path, 'r') as yaml_file:

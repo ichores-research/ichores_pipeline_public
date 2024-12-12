@@ -12,3 +12,4 @@ depth_topic: /hsrb/head_rgbd_sensor/depth_registered/image_rect_raw
 
 # Frame ids
 color_frame_id: head_rgbd_sensor_rgb_frame
+grasp_frame_id: hand_palm_link # its "gripper_link" for tiago and "hand_palm_link" for HSR

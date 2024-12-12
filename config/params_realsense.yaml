@@ -12,3 +12,4 @@ depth_topic: /camera/aligned_depth_to_color/image_raw
 
 # Frame ids
 color_frame_id: camera_color_optical_frame
+grasp_frame_id: gripper_link # its "gripper link" for tiago and "hand palm link" for HSR
