@@ -61,12 +61,10 @@ class PoseCalculator:
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
 
-    def load_grasps(self, obj_poses):
+    def load_grasps(self, obj_names):
         grasps = []
-        for idx, obj_pose in enumerate(obj_poses):
-            obj_name = obj_pose.name
+        for idx, obj_name in enumerate(obj_names):
             grasps_obj_frame = self.grasp_annotations.get(obj_name, None)['grasps']
-            #grasps_world_frame = transform_grasp_obj2world(grasps_obj_frame, obj_pose.pose)
             grasps.append(grasps_obj_frame)
 
         return grasps
@@ -74,7 +72,7 @@ class PoseCalculator:
     def transform_grasps(self, grasps_obj_frame, obj_poses):
         grasps = []
         for idx, (grasp_obj_frame, obj_pose) in enumerate(zip(grasps_obj_frame, obj_poses)):
-            grasps_world_frame = transform_grasp_obj2world(grasps_obj_frame, obj_pose.pose)
+            grasps_world_frame = transform_grasp_obj2world(grasp_obj_frame, obj_pose.pose)
             grasps.append(grasps_world_frame)
 
         return grasps
@@ -228,11 +226,14 @@ if __name__ == "__main__":
                 # ###############################
 
                 estimated_poses_camFrame = []
+                object_names = []
+
                 try:
                     for detection in detections:
                         if not detection.name == "036_wood_block":
                             estimated_pose = pose_calculator.estimate_object_poses(rgb, depth, detection)[0]
                             estimated_poses_camFrame.append(estimated_pose)
+                            object_names.append(detection.name)
                      
                 except Exception as e:
                     rospy.logerr(f"{e}")
@@ -248,9 +249,14 @@ if __name__ == "__main__":
                 # here it is essential in which frame the estimated_poses are
                 # we are using the camera frame
 
+                grasp_tfs = None
+                if len(estimated_poses_camFrame) > 0:
+                    grasp_tfs = pose_calculator.load_grasps(object_names)   
+
+                # transform grasps to camera frame (where object poses are)
                 estimated_grasps_camFrame = None
                 if len(estimated_poses_camFrame) > 0:
-                    estimated_grasps_camFrame = pose_calculator.get_grasps(estimated_poses_camFrame)   
+                    estimated_grasps_camFrame = pose_calculator.transform_grasps(grasp_tfs, estimated_poses_camFrame) 
 
                 # ###############################
                 # BEWARE! the publish_grasp_marker function is only for visualization!
