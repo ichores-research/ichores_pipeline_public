@@ -278,7 +278,8 @@ if __name__ == "__main__":
 
                 # New step: Check which object the human is pointing to
                 t0 = time.time()
-                if estimated_poses_camFrame and joint_positions is not None:
+                #if len(estimated_poses_camFrame) > 0 and joint_positions is not None:
+                if len(estimated_poses_camFrame) > 0 and joint_positions is not None:
                     elbow = joint_positions.elbow
                     wrist = joint_positions.wrist
                     min_distance = float('inf')
