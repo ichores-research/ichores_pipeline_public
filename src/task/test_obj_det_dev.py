@@ -285,15 +285,17 @@ if __name__ == "__main__":
                     min_distance = float('inf')
                     pointed_object = None
                     threshold = 0.3  # 0.5 meters              
+                    
+                    print(estimated_poses_camFrame)
 
                     pointed_object_pose = None
-                    for idx, pose_result in enumerate(estimated_poses_camFrame.pose_results):
-                        object_position = pose_result.position
+                    for idx, estimated_pose in enumerate(estimated_poses_camFrame):
+                        object_position = estimated_pose.pose.position
                         distance = calculate_distance_to_line(object_position, elbow, wrist)
                         if distance < min_distance:
                             min_distance = distance
-                            pointed_object = estimated_poses_camFrame.class_names[idx]
-                            pointed_object_pose = pose_result
+                            pointed_object = estimated_pose.name
+                            pointed_object_pose = estimated_pose.pose
 
                     if min_distance < threshold:
                         R = np.array([pointed_object_pose.orientation.x, pointed_object_pose.orientation.y,  pointed_object_pose.orientation.z, pointed_object_pose.orientation.w])
