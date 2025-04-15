@@ -7,3 +7,9 @@
 [submodule "src/pointing_gesture_recognition"]
 	path = src/pointing_gesture_recognition
 	url = https://github.com/v4r-tuwien/pointing_gesture_recognition.git
+[submodule "src/goal_state_reasoning"]
+	path = src/goal_state_reasoning
+	url = https://github.com/ichores-research/goal_state_reasoning
+[submodule "src/motion"]
+	path = src/motion
+	url = git@github.com:ichores-research/motion.git
