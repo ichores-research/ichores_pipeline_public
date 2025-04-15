@@ -185,6 +185,45 @@ class PoseCalculator:
         marker_pub.publish(marker_array)
 
 
+    def make_body_marker(self, id, pos):
+        marker = Marker()
+        marker.header.frame_id = self.color_frame_id
+        marker.header.stamp = rospy.Time.now()
+        marker.ns = "body_joints"
+        marker.id = id
+        marker.type = Marker.SPHERE
+        marker.action = Marker.ADD
+        marker.pose.position.x = pos.x
+        marker.pose.position.y = pos.y
+        marker.pose.position.z = pos.z
+        marker.pose.orientation.x = 0
+        marker.pose.orientation.y = 0
+        marker.pose.orientation.z = 0
+        marker.pose.orientation.w = 1  
+        marker.scale.x = 0.05
+        marker.scale.y = 0.05
+        marker.scale.z = 0.05
+        marker.color.r = 1.0
+        marker.color.g = 0.0
+        marker.color.b = 0.0
+        marker.color.a = 1.0
+
+        return marker
+
+    def publish_joint_positions(self, joint_positions):
+        marker_pub = rospy.Publisher("/body_joints", MarkerArray, latch=True)
+
+        marker_array = MarkerArray()
+        
+        print(joint_positions)
+
+        marker_array.markers.append(self.make_body_marker(0, joint_positions.shoulder))
+        marker_array.markers.append(self.make_body_marker(1, joint_positions.elbow))
+        marker_array.markers.append(self.make_body_marker(2, joint_positions.wrist))
+
+        marker_pub.publish(marker_array)
+
+
 # main of example script for iChores Pipeline
 # if you want to build your own rosnode, build it like this
 
@@ -274,7 +313,9 @@ if __name__ == "__main__":
                 t0 = time.time()
                 joint_positions = pose_calculator.detect_pointing_gesture(rgb, depth)
                 time_pointing = time.time() - t0
-                print('... received pointing gesture.')
+                if joint_positions is not None:
+                    print('... received pointing gesture.')
+                    pose_calculator.publish_joint_positions(joint_positions)
 
                 # New step: Check which object the human is pointing to
                 t0 = time.time()
