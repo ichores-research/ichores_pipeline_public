@@ -10,6 +10,6 @@
 [submodule "src/goal_state_reasoning"]
 	path = src/goal_state_reasoning
 	url = https://github.com/ichores-research/goal_state_reasoning
-[submodule "src/motion"]
-	path = src/motion
-	url = git@github.com:ichores-research/motion.git
+[submodule "src/motion_public"]
+	path = src/motion_public
+	url = git@github.com:ichores-research/motion_public.git
