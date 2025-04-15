@@ -5,7 +5,7 @@
 The pipeline is implemented for the detection and pose estimation of objects from the YCB-V or YCB-iChores datasets.
 This repo includes submodules.
 Clone this repository via either SSH or HTTPS and clone the submodules as well by:
-- `git clone https://github.com/ichores-research/ichores_pipeline.git`
+- `git clone https://github.com/ichores-research/ichores_pipeline_public.git`
 - `cd ichores_pipeline`
 - `git submodule init`
 - `git submodule update`
